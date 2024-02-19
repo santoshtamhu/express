@@ -31,23 +31,37 @@ app.get("/api/todos", (req, res) => {
   res.send(todos);
 });
 
+app.get("/api/todos/:id", (req, res) => {
+  const id = req.params.id;
+  const todo = todos.find((todo) => todo.id == id);
+  if (todo) {
+    return res.send(todo);
+  }
+  res.status(404).send({
+    erros: {
+      message: "product not found",
+    },
+  });
+});
+
 // route level middleware //
 
 app.post("/api/todos", checkAuthentication, checkValidRole, (req, res) => {
   console.log("todos added");
 
-  req.body.id = todos.length + 1;
-  const id = req.body.id;
+  const lastTodo = todos[todos.length - 1];
+  const newId = lastTodo ? lastTodo.id + 1 : 1;
+
   const title = req.body.title;
   const status = req.body.status;
 
   const newTodo = {
-    id,
+    id: newId,
     title,
     status,
   };
 
-  let inputValue = req.body.title.trim();
+  let inputValue = req.body.title?.trim();
   let matched = false;
 
   /*
@@ -63,7 +77,7 @@ app.post("/api/todos", checkAuthentication, checkValidRole, (req, res) => {
   );
 
   if (matched) {
-    return res.status(403).send({
+    return res.status(400).send({
       errors: {
         message: "todo already exists",
       },
@@ -71,7 +85,7 @@ app.post("/api/todos", checkAuthentication, checkValidRole, (req, res) => {
   }
 
   if (!inputValue) {
-    return res.status(403).send({
+    return res.status(400).send({
       errors: {
         key: "title",
         message: "field required",
@@ -80,8 +94,75 @@ app.post("/api/todos", checkAuthentication, checkValidRole, (req, res) => {
   }
 
   todos.push(newTodo);
-
   res.send("todos added");
+});
+
+app.put("/api/todos/:id", checkAuthentication, checkValidRole, (req, res) => {
+  console.log("todo updated");
+  const id = req.params.id;
+  // const todoIndex = todos.findIndex((todo) => todo.id == id);
+
+  const title = req.body.title?.trim();
+  const status = req.body.status?.trim();
+
+  if (!title && !status) {
+    return res.status(400).send({
+      erros: [
+        {
+          key: "title",
+          message: "field required",
+        },
+        {
+          key: "status",
+          message: "field required",
+        },
+      ],
+    });
+  } else if (!title || !status) {
+    return res.status(400).send({
+      errors: {
+        key: !title ? "title" : !status ? "status" : "",
+        message: "field required",
+      },
+    });
+  }
+
+  let matched = false;
+  matched = todos.some((e) => e.title.toLowerCase() == title.toLowerCase());
+
+  if (matched) {
+    return res.status(400).send({
+      erros: {
+        message: "todo already exists",
+      },
+    });
+  }
+
+  /*   if (todoIndex !== -1) {
+    todos[todoIndex].title = title;
+    todos[todoIndex].status = status;
+    return res.send("todo updated");
+  }
+  res.status(404).send({
+    errors: {
+      message: "todo not found",
+    },
+  }); */
+
+  todos.map((e) => {
+    if (e.id == id) {
+      e.title = title;
+      e.status = status;
+      res.send("todo updated");
+    } else {
+      res.status(404).send({
+        errors: {
+          message: "todo not found",
+        },
+      });
+    }
+    return e;
+  });
 });
 
 app.delete(
@@ -89,17 +170,13 @@ app.delete(
   checkAuthentication,
   checkValidRole,
   (req, res) => {
-    let id = req.params.id;
-    console.log(id);
+    const id = req.params.id;
     const todoIndex = todos.findIndex((todo) => todo.id == id);
-
-    console.log(todoIndex);
-
     if (todoIndex !== -1) {
-      res.send("todo deleted successfully");
-      return todos.splice(todoIndex, 1);
+      todos.splice(todoIndex, 1);
+      return res.status(204).send("todo deleted successfully");
     }
-    res.status(401).send({
+    res.status(400).send({
       errors: { message: "Todo not found" },
     });
   }
@@ -111,7 +188,7 @@ app.delete(
   checkValidRole,
   (req, res) => {
     todos = [];
-    res.send("todos reset");
+    res.status(204).send("todos reset");
   }
 );
 
